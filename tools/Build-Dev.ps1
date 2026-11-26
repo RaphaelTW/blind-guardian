@@ -22,6 +22,6 @@ try {
     if (-not $setup) { throw 'Instalador NSIS não encontrado.' }
     $out = Join-Path $root 'artifacts'
     New-Item -ItemType Directory -Path $out -Force | Out-Null
-    Copy-Item -LiteralPath $setup.FullName -Destination (Join-Path $out 'BlindGuardian_0.1.0-alpha_x64_Setup.exe') -Force
-    Write-Host "Instalador: $(Join-Path $out 'BlindGuardian_0.1.0-alpha_x64_Setup.exe')"
+    Copy-Item -LiteralPath $setup.FullName -Destination (Join-Path $out 'BlindGuardian_0.1.0-alpha.1_x64_Setup.exe') -Force
+    Write-Host "Instalador: $(Join-Path $out 'BlindGuardian_0.1.0-alpha.1_x64_Setup.exe')"
 } finally { Pop-Location }

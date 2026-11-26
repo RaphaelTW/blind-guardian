@@ -1,6 +1,6 @@
 # Instalação de desenvolvimento
 
-**0.1.0-alpha não fornece bloqueio de aplicativos.** Use somente em laboratório ou para avaliar a interface e o inventário.
+**0.1.0-alpha.1 não fornece bloqueio de aplicativos.** Use somente em laboratório ou para avaliar a interface e o inventário.
 
 ## Pré-requisitos para compilar
 
@@ -8,10 +8,10 @@ Windows 10/11 x64, Node.js, Rust com alvo MSVC, Microsoft C++ Build Tools e Wind
 
 ```powershell
 npm ci
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Build-Dev.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Invoke-Msvc.ps1 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Build-Dev.ps1
 ```
 
-O script gera o serviço experimental como recurso e copia o NSIS final para `artifacts/BlindGuardian_0.1.0-alpha_x64_Setup.exe`. O instalador per-machine exige elevação e instala a interface em Program Files. O serviço é incluído, mas **não registrado nem iniciado automaticamente** na versão alpha. Não há alteração de AppLocker, firewall ou serviço AnyDesk.
+O script gera o serviço experimental como recurso e copia o NSIS final para `artifacts/BlindGuardian_0.1.0-alpha.1_x64_Setup.exe`. O instalador per-machine exige elevação, instala a interface em Program Files e tenta registrar/iniciar `BlindGuardianService` automaticamente. A instalação elevada da rotina corrigida ainda precisa ser validada. O serviço não aplica proteção. Não há alteração de AppLocker, firewall ou serviço AnyDesk.
 
 Abra Blind Guardian pela bandeja e cadastre uma senha com pelo menos 12 caracteres. O username inicial é `rakdos`. Esse cadastro é feito na primeira abertura, ainda não em uma página segura do instalador. As credenciais e solicitações são mantidas no perfil Windows do usuário atual; não compartilhe o mesmo estado entre contas e não trate essa instalação como proteção corporativa.
 

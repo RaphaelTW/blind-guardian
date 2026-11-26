@@ -101,7 +101,7 @@ fn query_pipe(expected_pid: u32) -> bool {
 }
 
 pub fn status() -> &'static str {
-    let name: Vec<u16> = "BlindGuardianSvc"
+    let name: Vec<u16> = "BlindGuardianService"
         .encode_utf16()
         .chain(iter::once(0))
         .collect();

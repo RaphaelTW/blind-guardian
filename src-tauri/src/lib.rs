@@ -12,7 +12,9 @@ use parking_lot::Mutex;
 use protection::{ProtectionRecord, ProtectionState, ProtectionStore};
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 use tauri::menu::{Menu, MenuItem};
+use tauri::path::BaseDirectory;
 use tauri::tray::TrayIconBuilder;
 use tauri::{Emitter, Manager, State, WindowEvent};
 
@@ -177,6 +179,7 @@ fn request_protection(
 
 #[tauri::command]
 fn remove_protection_request(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     token: String,
     username: String,
@@ -185,6 +188,41 @@ fn remove_protection_request(
 ) -> Result<(), String> {
     require(&state, &token)?;
     state.auth.verify(&username, &password)?;
+    let record = state
+        .protection
+        .list()?
+        .into_iter()
+        .find(|record| record.app_id == app_id)
+        .ok_or("Aplicativo não cadastrado.")?;
+    if record.state == ProtectionState::Active
+        || record.state == ProtectionState::TemporarilyAuthorized
+    {
+        return Err("Proteção ativa: remoção exige o serviço.".into());
+    }
+    let script = app
+        .path()
+        .resolve("restore-shortcut.ps1", BaseDirectory::Resource)
+        .map_err(|e| e.to_string())?;
+    let guardian = std::env::current_exe().map_err(|e| e.to_string())?;
+    let output = Command::new("powershell.exe")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+        ])
+        .arg(script)
+        .args(["-ApplicationId", &app_id, "-GuardianExe"])
+        .arg(guardian)
+        .output()
+        .map_err(|e| e.to_string())?;
+    if !output.status.success() {
+        return Err(format!(
+            "Falha ao restaurar os atalhos originais. A solicitação foi mantida. {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
     let result = state.protection.remove(&app_id);
     audit::append(
         &state.audit_path,
@@ -219,6 +257,105 @@ fn authorize_execution(
 }
 
 #[tauri::command]
+fn launch_request(state: State<'_, AppState>) -> Result<Option<ProtectionRecord>, String> {
+    let mut args = std::env::args_os();
+    while let Some(arg) = args.next() {
+        if arg == "--launch-id" {
+            let id = args.next().ok_or("Identificador do aplicativo ausente.")?;
+            return Ok(state
+                .protection
+                .list()?
+                .into_iter()
+                .find(|record| record.app_id == id.to_string_lossy()));
+        }
+    }
+    Ok(None)
+}
+
+#[tauri::command]
+fn launch_managed(
+    state: State<'_, AppState>,
+    app_id: String,
+    password: String,
+) -> Result<(), String> {
+    let record = state
+        .protection
+        .list()?
+        .into_iter()
+        .find(|record| record.app_id == app_id)
+        .ok_or("Aplicativo não cadastrado.")?;
+    if record.state != ProtectionState::PendingValidation && record.state != ProtectionState::Active
+    {
+        return Err("Este aplicativo não está disponível para abertura gerenciada.".into());
+    }
+    let executable = inventory::validate_manual_path(&record.executable)?;
+    state.auth.verify_password(&password)?;
+    let parent = executable
+        .parent()
+        .ok_or("Diretório do aplicativo inválido.")?;
+    let result = Command::new(&executable).current_dir(parent).spawn();
+    audit::append(
+        &state.audit_path,
+        "launch_managed",
+        if result.is_ok() { "started" } else { "failure" },
+    );
+    result
+        .map(|_| ())
+        .map_err(|e| format!("Falha ao abrir o aplicativo: {e}"))
+}
+
+#[tauri::command]
+fn create_managed_shortcut(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    token: String,
+    app_id: String,
+) -> Result<(), String> {
+    require(&state, &token)?;
+    let record = state
+        .protection
+        .list()?
+        .into_iter()
+        .find(|record| record.app_id == app_id)
+        .ok_or("Aplicativo não cadastrado.")?;
+    let executable = inventory::validate_manual_path(&record.executable)?;
+    let script = app
+        .path()
+        .resolve("create-shortcut.ps1", BaseDirectory::Resource)
+        .map_err(|e| e.to_string())?;
+    let guardian = std::env::current_exe().map_err(|e| e.to_string())?;
+    let output = Command::new("powershell.exe")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+        ])
+        .arg(script)
+        .args([
+            "-ApplicationId",
+            &record.app_id,
+            "-ApplicationName",
+            &record.name,
+        ])
+        .arg("-GuardianExe")
+        .arg(guardian)
+        .arg("-AppExe")
+        .arg(executable)
+        .output()
+        .map_err(|e| e.to_string())?;
+    if !output.status.success() {
+        return Err(format!(
+            "Falha ao preparar atalhos: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    audit::append(&state.audit_path, "create_managed_shortcut", "success");
+    Ok(())
+}
+
+#[tauri::command]
 fn service_status() -> &'static str {
     service_status::status()
 }
@@ -245,6 +382,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let data = app.path().app_data_dir()?;
+            let first_run = !data.join("credentials.json").exists();
+            let launch_mode = std::env::args_os().any(|arg| arg == "--launch-id");
             app.manage(AppState {
                 auth: AuthStore::new(data.join("credentials.json")),
                 protection: ProtectionStore::new(data.join("protection.json")),
@@ -277,6 +416,12 @@ pub fn run() {
                     _ => {}
                 })
                 .build(app)?;
+            if first_run || launch_mode {
+                if let Some(window) = app.get_webview_window("main") {
+                    window.show()?;
+                    window.set_focus()?;
+                }
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -299,6 +444,9 @@ pub fn run() {
             request_protection,
             remove_protection_request,
             authorize_execution,
+            launch_request,
+            launch_managed,
+            create_managed_shortcut,
             service_status,
             quit_authenticated
         ])

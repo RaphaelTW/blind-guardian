@@ -16,20 +16,72 @@ mod windows_service_host {
     use windows_service::{
         define_windows_service,
         service::{
-            ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus,
+            ServiceAccess, ServiceControl, ServiceControlAccept, ServiceErrorControl,
+            ServiceExitCode, ServiceInfo, ServiceStartType, ServiceState, ServiceStatus,
             ServiceType,
         },
         service_control_handler::{self, ServiceControlHandlerResult},
-        service_dispatcher, Result,
+        service_dispatcher,
+        service_manager::{ServiceManager, ServiceManagerAccess},
+        Error, Result,
     };
 
-    const NAME: &str = "BlindGuardianSvc";
+    const NAME: &str = "BlindGuardianService";
     const TYPE: ServiceType = ServiceType::OWN_PROCESS;
 
     define_windows_service!(ffi_service_main, service_main);
 
     pub fn run() -> Result<()> {
         service_dispatcher::start(NAME, ffi_service_main)
+    }
+
+    pub fn install() -> Result<()> {
+        let manager = ServiceManager::local_computer(
+            None::<&str>,
+            ServiceManagerAccess::CONNECT | ServiceManagerAccess::CREATE_SERVICE,
+        )?;
+        let info = ServiceInfo {
+            name: OsString::from(NAME),
+            display_name: OsString::from("Blind Guardian Service"),
+            service_type: TYPE,
+            start_type: ServiceStartType::AutoStart,
+            error_control: ServiceErrorControl::Normal,
+            executable_path: std::env::current_exe().map_err(Error::Winapi)?,
+            launch_arguments: vec![],
+            dependencies: vec![],
+            account_name: None,
+            account_password: None,
+        };
+        let access =
+            ServiceAccess::CHANGE_CONFIG | ServiceAccess::START | ServiceAccess::QUERY_STATUS;
+        let service = match manager.open_service(NAME, access) {
+            Ok(service) => {
+                service.change_config(&info)?;
+                service
+            }
+            Err(Error::Winapi(ref error)) if error.raw_os_error() == Some(1060) => {
+                manager.create_service(&info, access)?
+            }
+            Err(error) => return Err(error),
+        };
+        if service.query_status()?.current_state != ServiceState::Running {
+            service.start::<&str>(&[])?;
+        }
+        Ok(())
+    }
+
+    pub fn uninstall() -> Result<()> {
+        let manager = ServiceManager::local_computer(None::<&str>, ServiceManagerAccess::CONNECT)?;
+        let access = ServiceAccess::STOP | ServiceAccess::DELETE | ServiceAccess::QUERY_STATUS;
+        let service = match manager.open_service(NAME, access) {
+            Ok(service) => service,
+            Err(Error::Winapi(ref error)) if error.raw_os_error() == Some(1060) => return Ok(()),
+            Err(error) => return Err(error),
+        };
+        if service.query_status()?.current_state == ServiceState::Running {
+            let _ = service.stop();
+        }
+        service.delete()
     }
 
     fn service_main(_args: Vec<OsString>) {
@@ -75,6 +127,12 @@ mod windows_service_host {
 
 #[cfg(windows)]
 fn main() -> windows_service::Result<()> {
+    if std::env::args().any(|arg| arg == "--install") {
+        return windows_service_host::install();
+    }
+    if std::env::args().any(|arg| arg == "--uninstall") {
+        return windows_service_host::uninstall();
+    }
     if std::env::args().any(|arg| arg == "--self-test") {
         use std::sync::{
             atomic::{AtomicBool, Ordering},

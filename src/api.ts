@@ -33,6 +33,9 @@ export const api = {
   remove: (token: string, username: string, password: string, appId: string) =>
     invoke<void>('remove_protection_request', { token, username, password, appId }),
   authorize: (appId: string, password: string) => invoke<void>('authorize_execution', { appId, password }),
+  launchRequest: () => invoke<ProtectionRecord | null>('launch_request'),
+  launchManaged: (appId: string, password: string) => invoke<void>('launch_managed', { appId, password }),
+  createManagedShortcut: (token: string, appId: string) => invoke<void>('create_managed_shortcut', { token, appId }),
   serviceStatus: () => invoke<string>('service_status'),
   quit: (username: string, password: string, confirmed: boolean) =>
     invoke<void>('quit_authenticated', { username, password, confirmed }),

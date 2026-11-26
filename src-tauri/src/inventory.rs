@@ -33,6 +33,43 @@ fn icon_path(raw: &str) -> Option<PathBuf> {
     }
 }
 
+fn executable_from_install_location(raw: &str, name: &str) -> Option<PathBuf> {
+    let dir = PathBuf::from(raw.trim().trim_matches('"'));
+    if !dir.is_dir() {
+        return None;
+    }
+    let normalized_name: String = name
+        .chars()
+        .filter(|c| c.is_alphanumeric())
+        .flat_map(char::to_lowercase)
+        .collect();
+    let candidates: Vec<PathBuf> = std::fs::read_dir(dir)
+        .ok()?
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.is_file()
+                && path
+                    .extension()
+                    .is_some_and(|e| e.to_string_lossy().eq_ignore_ascii_case("exe"))
+        })
+        .filter(|path| {
+            let stem = path.file_stem().unwrap_or_default().to_string_lossy();
+            let normalized_stem: String = stem
+                .chars()
+                .filter(|c| c.is_alphanumeric())
+                .flat_map(char::to_lowercase)
+                .collect();
+            normalized_stem == normalized_name
+        })
+        .collect();
+    if candidates.len() == 1 {
+        candidates.into_iter().next()
+    } else {
+        None
+    }
+}
+
 fn registry_entries(root: &RegKey, hive: &str, key_path: &str, apps: &mut Vec<InstalledApp>) {
     let Ok(uninstall) = root.open_subkey(key_path) else {
         return;
@@ -49,10 +86,13 @@ fn registry_entries(root: &RegKey, hive: &str, key_path: &str, apps: &mut Vec<In
         let version: String = sub.get_value("DisplayVersion").unwrap_or_default();
         let publisher: String = sub.get_value("Publisher").unwrap_or_default();
         let raw_icon: String = sub.get_value("DisplayIcon").unwrap_or_default();
-        let executable = icon_path(&raw_icon).filter(|p| {
-            p.extension()
-                .is_some_and(|e| e.to_string_lossy().eq_ignore_ascii_case("exe"))
-        });
+        let install_location: String = sub.get_value("InstallLocation").unwrap_or_default();
+        let executable = icon_path(&raw_icon)
+            .filter(|p| {
+                p.extension()
+                    .is_some_and(|e| e.to_string_lossy().eq_ignore_ascii_case("exe"))
+            })
+            .or_else(|| executable_from_install_location(&install_location, name));
         let icon_source = icon_path(&raw_icon).or_else(|| executable.clone());
         let icon = icon_source.as_deref().and_then(crate::icons::extract_icon);
         apps.push(InstalledApp {
