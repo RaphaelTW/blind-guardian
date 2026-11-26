@@ -9,7 +9,7 @@ mod service_status;
 use auth::AuthStore;
 use inventory::InstalledApp;
 use parking_lot::Mutex;
-use protection::{ProtectionRecord, ProtectionStore};
+use protection::{ProtectionRecord, ProtectionState, ProtectionStore};
 use std::fs;
 use std::path::PathBuf;
 use tauri::menu::{Menu, MenuItem};
@@ -200,12 +200,17 @@ fn authorize_execution(
     app_id: String,
     password: String,
 ) -> Result<(), String> {
-    state.auth.verify_password(&password)?;
     let records = state.protection.list()?;
     let record = records
         .iter()
         .find(|r| r.app_id == app_id)
         .ok_or("Aplicativo não cadastrado.")?;
+    if record.state != ProtectionState::Active {
+        return Err(
+            "A proteção ainda não está ativa; a senha não pode liberar este aplicativo.".into(),
+        );
+    }
+    state.auth.verify_password(&password)?;
     audit::append(&state.audit_path, "authorize_execution", "unsupported");
     Err(format!(
         "{}: execução autorizada ainda não validada; nenhum aplicativo foi iniciado.",

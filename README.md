@@ -4,6 +4,8 @@ Aplicação Windows de desenvolvimento **0.1.0-alpha** para inventário de progr
 
 > **Estado de segurança:** nenhum aplicativo possui proteção validada nesta versão. “Aguardando validação” registra apenas uma solicitação; não bloqueia o EXE. O serviço incluído ainda não aplica políticas. Não utilizar como controle de acesso em produção.
 
+**Por que o AnyDesk abriu mesmo após clicar em “Preparar bloqueio”?** Esse comando grava uma solicitação para testes; a versão publicada não intercepta a abertura direta do EXE. A janela de senha do Blind Guardian só poderá liberar um aplicativo depois que uma política de execução real estiver instalada e validada. No código em desenvolvimento, o botão “Senha” fica desabilitado enquanto o estado for pendente. O modo instalado do AnyDesk também possui um serviço em segundo plano, que precisa ser controlado separadamente.
+
 ## O que funciona hoje
 
 - Login administrativo local com senha Argon2id e salt aleatório; username inicial `rakdos`; bloqueio após tentativas incorretas.

@@ -30,11 +30,13 @@ $lab = 'C:\BlindGuardianLab'
 .\tools\Test-AppLocker.ps1 -LabPath $lab -Apply
 .\tools\Test-ExecutionBroker.ps1 -LabPath $lab
 .\tools\Test-AnyDesk.ps1 -LabPath $lab
+.\tools\Test-AnyDesk.ps1 -LabPath $lab -Mode Installed -Apply
+# Em snapshot separado: -Mode Portable -TargetPath 'C:\Lab\AnyDesk.exe' -Apply
 .\tools\Restore-TestEnvironment.ps1 -LabPath $lab -WhatIf
 .\tools\Restore-TestEnvironment.ps1 -LabPath $lab
 ```
 
-`Setup-TestEnvironment.ps1` salva a política AppLocker local, estado de AppIDSvc e AnyDesk e cria duas contas padrão locais com senhas aleatórias protegidas por DPAPI do administrador da VM. Não altera AnyDesk. `Test-AppLocker.ps1 -Apply` aplica temporariamente uma política local apenas para `whoami.exe`, inicia AppIDSvc e testa execução real com as duas identidades; restaura a política no bloco `finally`. Se o processo for interrompido antes do `finally`, use `Restore-TestEnvironment.ps1` na mesma VM. O diretório de evidências não é excluído automaticamente.
+`Setup-TestEnvironment.ps1` salva a política AppLocker local, estado de AppIDSvc e AnyDesk e cria duas contas padrão locais com senhas aleatórias protegidas por DPAPI do administrador da VM. Não altera AnyDesk. `Test-AppLocker.ps1 -Apply` aplica temporariamente uma política local apenas para `whoami.exe`, inicia AppIDSvc e testa execução real com as duas identidades. `Test-AnyDesk.ps1 -Apply` desabilita temporariamente o serviço AnyDesk, aplica uma política por hash para o EXE informado e tenta executá-lo com as identidades de funcionário e broker, inclusive uma cópia renomeada. Exige evento AppLocker 8004 para cada alvo. Ambos os scripts restauram política e serviços no bloco `finally`. Se o processo for interrompido antes do `finally`, use `Restore-TestEnvironment.ps1` na mesma VM. O diretório de evidências não é excluído automaticamente.
 
 **Não execute `-Apply` no computador de desenvolvimento.** A política efetiva deve estar vazia; o teste recusa GPO preexistente. Uma conta dedicada que consegue executar `whoami.exe` não prova usabilidade do AnyDesk.
 
@@ -47,4 +49,4 @@ Faça snapshots separados para o modo portátil e o instalado. Para cada modo, r
 3. Feche a janela e verifique processos auxiliares, serviço e conexões. Repita após reinício, atualização e falha do broker.
 4. Se alguma conexão for aceita sem autorização, marque a versão como **não suportada** ou **falha na proteção**. Só marque **Proteção ativa** depois de bloquear também execução direta e conexões.
 
-Os scripts atuais não concluem esse ensaio: o broker Rust ainda não obtém o token da conta dedicada nem lança o AnyDesk. A prova exige implementação posterior e verificação independente. Consulte [Execution Broker](EXECUTION-BROKER.md).
+O teste automatizado é parcial. A regra por hash cobre apenas os binários informados; outra versão não incluída pode escapar. O processo do broker pode iniciar sem uma interface utilizável na sessão do funcionário. O script não autentica pela interface Blind Guardian nem testa conexão remota. O broker Rust ainda não obtém o token da conta dedicada nem lança o AnyDesk; isso exige implementação posterior e verificação independente. Consulte [Execution Broker](EXECUTION-BROKER.md).

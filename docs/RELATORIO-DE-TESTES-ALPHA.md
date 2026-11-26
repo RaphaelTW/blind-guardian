@@ -34,3 +34,9 @@
 Nenhum programa está validado como protegido. Os scripts de VM foram preparados, mas **não executados em VM**. Eles devem ser revisados e testados com snapshot antes de uso operacional.
 
 SHA-256 do instalador final: `808C474098A8135FFD5A92338EC3F9C14567CC3640C769AF7E16CD2C9C183663`.
+
+## Revisão após teste de instalação
+
+O usuário confirmou que o AnyDesk abre diretamente após solicitar proteção na versão publicada. Esse comportamento é coerente com o estado `pending_validation`: não há política aplicada nem interceptação do processo. A interface em desenvolvimento agora desabilita o botão de senha para registros pendentes, e o backend recusa a senha antes de autenticá-la quando não há proteção ativa.
+
+O ensaio `Test-AnyDesk.ps1` foi ampliado para aplicação controlada somente em VM, com identidades distintas, cópia renomeada, tentativa real de execução e exigência de evento AppLocker 8004. Na máquina física, somente a inspeção sem alterações foi executada; `-Apply -WhatIf` foi recusado pela guarda de VM. **O ensaio de proteção ainda não foi executado em VM, e nenhum aplicativo foi validado.** Frontend compilado, três testes Rust passaram e os 14 scripts PowerShell passaram na análise sintática após a revisão.
