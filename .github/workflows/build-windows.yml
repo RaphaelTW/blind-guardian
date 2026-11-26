@@ -1,0 +1,28 @@
+name: Build Windows alpha
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Rust toolchain
+        shell: pwsh
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+      - name: Build alpha NSIS
+        shell: pwsh
+        run: .\tools\Build-Dev.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: blind-guardian-0.1.0-alpha-windows-x64
+          path: artifacts/BlindGuardian_0.1.0-alpha_x64_Setup.exe

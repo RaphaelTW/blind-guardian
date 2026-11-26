@@ -1,0 +1,9 @@
+[package]
+name = "blind-guardian-service"
+version = "0.1.0-alpha"
+edition = "2021"
+authors = ["Raphael Laurentino"]
+license = "MIT"
+
+[dependencies]
+windows-service = "0.8.1"

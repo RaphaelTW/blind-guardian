@@ -1,0 +1,15 @@
+/node_modules/
+/dist/
+*.tsbuildinfo
+/src-tauri/target/
+/service/target/
+/src-tauri/resources/*.exe
+/artifacts/
+/src-tauri/gen/schemas/
+*.log
+*.pdb
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-*
